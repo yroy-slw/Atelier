@@ -1,0 +1,27 @@
+# Dépendances
+node_modules/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environnement / secrets
+.env
+.env.*
+!.env.example
+
+# Supabase CLI (fichiers locaux générés)
+supabase/.branches/
+supabase/.temp/
+supabase/.env
+
+# Dumps et sauvegardes de base
+*.dump
+*.backup
+*.sql.gz
+
+# Système / éditeurs
+.DS_Store
+.vscode/
+.idea/
+*.swp

@@ -3,8 +3,8 @@
 Socle de données pour un outil de gestion de commerce artisanal : commandes, clients, destinataires, livraisons, paiements et traçabilité.
 Premier cas d'usage : un magasin de fleurs à Lausanne (6 personnes).
 
-- **Cible** : PostgreSQL 15+ / Supabase
-- **Nom de la base en local** : `atelier`
+- **Cible** : PostgreSQL 15+ / Supabase (Postgres 17 en local)
+- **Base locale** : stack Supabase dans Docker, `postgresql://postgres:postgres@127.0.0.1:54322/postgres`
 - **Promesse du MVP** : n'importe qui dans l'équipe sait en 5 secondes où en est n'importe quelle commande.
 
 ---
@@ -13,8 +13,8 @@ Premier cas d'usage : un magasin de fleurs à Lausanne (6 personnes).
 
 1. [Fichiers](#fichiers)
 2. [Installation sur Mac](#installation-sur-mac)
-3. [Créer et remplir la base](#créer-et-remplir-la-base)
-4. [Repartir de zéro (drop)](#repartir-de-zéro-drop)
+3. [Lancer la base en local](#lancer-la-base-en-local)
+4. [Tests (pgTAP)](#tests-pgtap)
 5. [Traçabilité : l'historique des statuts](#traçabilité--lhistorique-des-statuts)
 6. [Requêtes utiles](#requêtes-utiles)
 7. [Modèle de données](#modèle-de-données)
@@ -28,114 +28,72 @@ Premier cas d'usage : un magasin de fleurs à Lausanne (6 personnes).
 
 ```
 atelier/
-├── package.json                      # scripts npm run db:reset / db:test
-├── docs/
+├── CLAUDE.md                              # contexte et conventions pour Claude Code
+├── package.json                           # raccourcis npm vers la CLI Supabase
+├── docs/                                  # décisions produit, flows, specs
 └── supabase/
+    ├── config.toml                        # configuration de la stack locale
     ├── migrations/
-    │   └── 001_schema.sql
-    ├── 002_seed_demo.sql
+    │   └── 20261011000000_schema_initial.sql
+    ├── seed.sql                           # données de démo (dev uniquement)
     └── tests/
-        ├── 000_stub_auth_local.sql
-        └── 003_tests_scenarios.sql
+        └── database/                      # tests pgTAP
+            ├── 01_cycle_commande.test.sql
+            ├── 02_securite.test.sql
+            └── 03_clients.test.sql
 ```
 
-| Fichier | Rôle | Local | Supabase |
+| Fichier | Rôle | Local | Production |
 |---|---|:---:|:---:|
-| `supabase/tests/000_stub_auth_local.sql` | Simule `auth.uid()` et les rôles `anon` / `authenticated` de Supabase | ✅ | ❌ jamais |
-| `supabase/migrations/001_schema.sql` | **La migration** : tables, enums, triggers, vues, RLS | ✅ | ✅ |
-| `supabase/002_seed_demo.sql` | Boutique fictive, 4 utilisateurs, 2 clients, 1 occasion | ✅ | dev uniquement |
-| `supabase/tests/003_tests_scenarios.sql` | 10 scénarios métier rejouables | ✅ | ❌ |
+| `supabase/migrations/*.sql` | Le schéma : tables, enums, triggers, vues, RLS. **1 fichier = 1 changement**, jamais modifié une fois appliqué | ✅ | ✅ |
+| `supabase/seed.sql` | Boutique fictive, 4 utilisateurs, 2 clients, 1 occasion | ✅ | ❌ |
+| `supabase/tests/database/*.test.sql` | Tests pgTAP (48 assertions) | ✅ | ❌ |
 
-> Les fichiers sont numérotés : on les lance **toujours dans l'ordre** (000 → 001 → 002, puis 003).
+> Une nouvelle évolution du schéma = une nouvelle migration : `supabase migration new <nom>`.
 
 ---
 
 ## Installation sur Mac
 
-`psql` n'est que le client. Il faut aussi un serveur Postgres.
+Il faut **Docker Desktop** (lancé) et la **CLI Supabase**.
 
 ```bash
 # Homebrew (si absent)
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
-# Postgres 16
-brew install postgresql@16
-brew services start postgresql@16
+# CLI Supabase
+brew install supabase/tap/supabase
+supabase --version
 
-# Rendre psql, createdb, dropdb accessibles
-echo 'export PATH="$(brew --prefix postgresql@16)/bin:$PATH"' >> ~/.zshrc
-source ~/.zshrc
-
-# Vérifier
-psql --version
+# Docker Desktop : https://www.docker.com/products/docker-desktop/ — puis le lancer
+open -a Docker
 ```
 
-Commandes utiles du serveur :
-
-```bash
-brew services list                    # état
-brew services stop postgresql@16      # arrêter
-brew services restart postgresql@16   # redémarrer
-```
+`psql` (client seul) est pratique pour la console, mais pas obligatoire : `brew install libpq`.
 
 ---
 
-## Créer et remplir la base
+## Lancer la base en local
 
 Depuis la racine du dépôt :
 
-```bash
-createdb atelier
-psql -d atelier -v ON_ERROR_STOP=1 \
-  -f supabase/tests/000_stub_auth_local.sql \
-  -f supabase/migrations/001_schema.sql \
-  -f supabase/002_seed_demo.sql
-```
+| Commande | Équivalent CLI | Effet |
+|---|---|---|
+| `npm run db:start` | `supabase start` | Démarre la stack locale (le premier lancement télécharge les images) |
+| `npm run db:reset` | `supabase db reset` | Recrée la base : rejoue les migrations puis le seed |
+| `npm run db:test` | `supabase db reset && supabase test db` | Reset complet puis tests pgTAP |
+| `npm run db:stop` | `supabase stop` | Arrête la stack |
 
-Lancer les scénarios de test :
+Aucune dépendance npm : les scripts ne font qu'appeler la CLI Supabase.
 
-```bash
-psql -d atelier -f supabase/tests/003_tests_scenarios.sql
-```
-
-> ⚠️ Toujours préciser `-d atelier`. Sans cela, `psql` cherche une base au nom de ton utilisateur macOS et échoue.
-
-Les **5 erreurs affichées par les tests sont attendues** : ce sont les garde-fous qui refusent ce qu'ils doivent refuser (livraison sur un retrait, accès à une autre boutique, lecture du PIN, etc.).
-
-Ouvrir une console interactive :
+- **Studio** (interface web) : http://127.0.0.1:54323
+- **Console SQL** :
 
 ```bash
-psql -d atelier
+psql postgresql://postgres:postgres@127.0.0.1:54322/postgres
 ```
 
 Dans la console : `\dt` liste les tables, `\d commande` décrit une table, `\dv` liste les vues, `\q` quitte.
-
----
-
-## Repartir de zéro (drop)
-
-Le script de test **écrit des données** (seconde boutique, commandes). Pour le relancer proprement, il faut recréer la base.
-
-### Réinitialisation complète
-
-```bash
-dropdb atelier && createdb atelier
-psql -d atelier -v ON_ERROR_STOP=1 \
-  -f supabase/tests/000_stub_auth_local.sql \
-  -f supabase/migrations/001_schema.sql \
-  -f supabase/002_seed_demo.sql
-```
-
-### Scripts npm (recommandé)
-
-Depuis la racine du dépôt :
-
-```bash
-npm run db:reset   # supprime, recrée et remplit la base atelier (stub + schéma + seed)
-npm run db:test    # db:reset puis lance les scénarios de test
-```
-
-Aucune dépendance à installer : les scripts appellent simplement `dropdb`, `createdb` et `psql`.
 
 ### Alias pratique (pour lancer depuis n'importe quel dossier)
 
@@ -148,21 +106,25 @@ alias atelier-test='npm --prefix ~/chemin/vers/atelier run db:test'
 
 Puis `source ~/.zshrc`, et ensuite simplement `atelier-reset` ou `atelier-test`.
 
-### Si `dropdb` refuse (« database is being accessed by other users »)
+---
 
-Une connexion est encore ouverte (console `psql`, client graphique…). La fermer, ou forcer :
-
-```bash
-dropdb --force atelier
-```
-
-### Renommer une base existante
+## Tests (pgTAP)
 
 ```bash
-psql -d postgres -c 'ALTER DATABASE ancien_nom RENAME TO atelier;'
+npm run db:test
 ```
 
-> Les rôles `anon` et `authenticated` sont créés au niveau du **serveur**, pas de la base : ils survivent à un `dropdb`. Le stub le gère (création seulement s'ils n'existent pas).
+Résultat attendu : `All tests successful. Files=3, Tests=48` puis `Result: PASS`.
+
+| Fichier | Ce qui est vérifié |
+|---|---|
+| `01_cycle_commande` | Saisie sur la tablette au nom de Léa (PIN), numéro `AAAA-NNNN`, totaux et paiement calculé, livraison (snapshot figé, `planifiee` auto, `livree_at`, commande `terminee`), historique complet avec auteurs, garde-fous (pas de livraison sur un retrait, une seule livraison, motif d'échec, snapshot complet) |
+| `02_securite` | Isolation entre boutiques (RLS + clés composites), hash du PIN illisible, vérification et définition du PIN, en-tête `x-utilisateur` d'une autre boutique ignoré, historique en lecture seule, suppressions et équipe réservées à la gérance |
+| `03_clients` | Occasions à relancer (dans et hors fenêtre), anonymisation nLPD (refusée à la vente, données effacées, montants conservés) |
+
+Chaque fichier tourne dans une transaction annulée à la fin (`rollback`) : les tests ne modifient pas la base. Ils s'appuient sur les identifiants de `supabase/seed.sql`.
+
+Pour écrire un nouveau test : copier un fichier existant, ajuster `select plan(n)` au nombre d'assertions. Les principales : `is`, `ok`, `lives_ok`, `throws_ok` (avec le code SQLSTATE : `42501` droits/RLS, `23503` clé étrangère, `23514` contrainte check, `P0001` exception métier), `is_empty`, `results_eq`.
 
 ---
 
@@ -216,7 +178,7 @@ Le PIN se vérifie avec `app.verifier_pin(utilisateur_id, pin)` et se définit (
 
 ### Simuler un utilisateur en local
 
-Dans `psql`, pour reproduire ce que fera l'application :
+Dans la console SQL (`psql` ou Studio), pour reproduire ce que fera l'application (c'est aussi ce que font les tests) :
 
 ```sql
 begin;
@@ -367,12 +329,16 @@ organisation ─┬─ utilisateur
 
 ## Déployer sur Supabase
 
-1. Créer un projet (région Europe).
-2. **SQL Editor** → coller `supabase/migrations/001_schema.sql` → *Run*.
-3. Optionnel en dev : coller `supabase/002_seed_demo.sql` → *Run*.
-4. Ne **jamais** lancer `supabase/tests/000_stub_auth_local.sql` : Supabase fournit déjà `auth.uid()` et les rôles.
+1. Créer un projet (région Europe, de préférence Zurich pour la nLPD).
+2. Lier le dépôt au projet, puis pousser les migrations :
 
-À moyen terme, utiliser la CLI Supabase (`brew install supabase/tap/supabase`, puis `supabase start`, avec Docker) ; les migrations sont déjà rangées dans `supabase/migrations/`. La CLI attend toutefois des noms horodatés (`20260101000000_schema.sql`) et un seed dans `supabase/seed.sql` : il faudra renommer ces fichiers à ce moment-là.
+```bash
+supabase login
+supabase link --project-ref <ref-du-projet>
+supabase db push          # applique les migrations pas encore appliquées
+```
+
+`supabase db push` n'envoie **pas** le seed : les données de démo restent locales.
 
 ---
 

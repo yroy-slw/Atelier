@@ -1,8 +1,8 @@
 -- =============================================================================
 --  Données de démonstration (boutique fictive) — à NE PAS lancer en production
+--  Chargé automatiquement par « supabase db reset ».
+--  Les tests pgTAP (supabase/tests/database) s'appuient sur ces identifiants.
 -- =============================================================================
-begin;
-
 insert into public.organisation (id, nom, adresse, telephone, email)
 values ('00000000-0000-0000-0000-00000000f100', 'Atelier Floral Démo',
         'Rue de Bourg 1, 1003 Lausanne', '+41210000000', 'demo@example.ch');
@@ -41,4 +41,3 @@ values ('00000000-0000-0000-0000-00000000f100', '00000000-0000-0000-0000-0000000
         'Anniversaire de sa mère', extract(day from current_date + 3)::int, extract(month from current_date + 3)::int,
         '00000000-0000-0000-0000-0000000000d1', 5);
 
-commit;

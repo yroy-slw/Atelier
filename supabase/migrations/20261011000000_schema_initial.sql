@@ -1,6 +1,6 @@
 -- =============================================================================
---  Fleuriste — MVP « tableau des commandes »
---  Migration 001 : schéma, contraintes, triggers, RLS
+--  Atelier — MVP « tableau des commandes »
+--  Migration initiale : schéma, contraintes, triggers, RLS
 --  Cible : PostgreSQL 15+ / Supabase
 -- =============================================================================
 --  Principes
@@ -12,8 +12,6 @@
 --     logistique (livraison.statut), paiement (CALCULÉ dans la vue)
 --   · soft delete (deleted_at) + anonymisation nLPD pour les clients
 -- =============================================================================
-
-begin;
 
 create schema if not exists extensions;
 create extension if not exists pg_trgm  with schema extensions;
@@ -645,5 +643,3 @@ grant select (id, organisation_id, auth_user_id, nom, role, actif, created_at, u
 grant usage on schema app to authenticated;
 grant execute on function app.verifier_pin(uuid, text), app.definir_pin(uuid, text),
                          app.anonymiser_client(uuid) to authenticated;
-
-commit;

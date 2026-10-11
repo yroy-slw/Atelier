@@ -4,7 +4,9 @@
   "private": true,
   "description": "Base de données du MVP « tableau des commandes » (PostgreSQL / Supabase)",
   "scripts": {
-    "db:reset": "dropdb --if-exists atelier && createdb atelier && psql -d atelier -q -v ON_ERROR_STOP=1 -f supabase/tests/000_stub_auth_local.sql -f supabase/migrations/001_schema.sql -f supabase/002_seed_demo.sql && echo '✅ base atelier prête'",
-    "db:test": "npm run db:reset && psql -d atelier -f supabase/tests/003_tests_scenarios.sql"
+    "db:start": "supabase start",
+    "db:stop": "supabase stop",
+    "db:reset": "supabase db reset",
+    "db:test": "supabase db reset && supabase test db"
   }
 }
